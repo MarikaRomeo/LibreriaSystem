@@ -22,7 +22,7 @@ public class LibraryContext : DbContext
     {
         if (!options.IsConfigured)
         {
-            options.UseSqlite("Data Source=library.db");
+            options.UseSqlite(LibraryDatabase.GetConnectionString(Directory.GetCurrentDirectory()));
         }
     }
 

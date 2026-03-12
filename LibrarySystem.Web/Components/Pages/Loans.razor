@@ -1,0 +1,55 @@
+@using LoanEntity = LibrarySystem.Core.Loan
+@using LibrarySystem.Data
+@using Microsoft.EntityFrameworkCore
+
+@page "/loan"
+@inject LibraryContext Context
+
+<PageTitle>Utlåning</PageTitle>
+
+<h3>Utlåning</h3>
+
+@if (loans == null)
+{
+    <p>Laddar...</p>
+}
+else if (loans.Count == 0)
+{
+    <p>Inga aktiva eller historiska lån hittades.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Bok</th>
+                <th>Medlem</th>
+                <th>Utlånad</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var loan in loans)
+            {
+                <tr>
+                    <td>@loan.Book.Title</td>
+                    <td>@loan.Member.FirstName @loan.Member.LastName</td>
+                    <td>@loan.LoanDate.ToString("yyyy-MM-dd")</td>
+                    <td>@(loan.IsReturned ? "Returnerad" : "Utlånad")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<LoanEntity>? loans;
+
+    protected override async Task OnInitializedAsync()
+    {
+        loans = await Context.Loans
+            .Include(loan => loan.Book)
+            .Include(loan => loan.Member)
+            .ToListAsync();
+    }
+}

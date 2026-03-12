@@ -3,13 +3,12 @@ using LibrarySystem.Data;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
-var databasePath = Path.Combine(builder.Environment.ContentRootPath, "library.db");
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddDbContext<LibraryContext>(options =>
-    options.UseSqlite($"Data Source={databasePath}"));
+    options.UseSqlite(LibraryDatabase.GetConnectionString(builder.Environment.ContentRootPath)));
 builder.Services.AddScoped<IBookRepository, BookRepository>();
 
 var app = builder.Build();
@@ -18,6 +17,7 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<LibraryContext>();
     dbContext.Database.Migrate();
+    await LibrarySeedData.SeedAsync(dbContext);
 }
 
 // Configure the HTTP request pipeline.
