@@ -1,13 +1,61 @@
+@page "/members"
 @using LibrarySystem.Core
 @using LibrarySystem.Data
+@using LibrarySystem.Web.ViewModels.Members
 @using Microsoft.EntityFrameworkCore
-
-@page "/members"
 @inject LibraryContext Context
 
 <PageTitle>Medlemmar</PageTitle>
 
-<h3>Medlemmar</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Medlemmar</h3>
+    <button class="btn btn-outline-secondary" @onclick="ShowCreateForm">Ny medlem</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @(statusIsError ? "alert-danger" : "alert-success")" role="alert">
+        @statusMessage
+    </div>
+}
+
+@if (isFormVisible)
+{
+    <EditForm Model="memberForm" OnValidSubmit="SaveMemberAsync" class="card shadow-sm mb-4">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card-body">
+            <h5 class="card-title">@(memberForm.Id == 0 ? "Registrera medlem" : "Redigera medlem")</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Förnamn</label>
+                    <InputText class="form-control" @bind-Value="memberForm.FirstName" />
+                    <ValidationMessage For="@(() => memberForm.FirstName)" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Efternamn</label>
+                    <InputText class="form-control" @bind-Value="memberForm.LastName" />
+                    <ValidationMessage For="@(() => memberForm.LastName)" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">E-post</label>
+                    <InputText class="form-control" @bind-Value="memberForm.Email" />
+                    <ValidationMessage For="@(() => memberForm.Email)" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Medlem sedan</label>
+                    <InputDate class="form-control" @bind-Value="memberForm.MembershipDate" />
+                    <ValidationMessage For="@(() => memberForm.MembershipDate)" />
+                </div>
+            </div>
+        </div>
+        <div class="card-footer d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Spara</button>
+            <button type="button" class="btn btn-outline-secondary" @onclick="HideForm">Avbryt</button>
+        </div>
+    </EditForm>
+}
 
 @if (members == null)
 {
@@ -19,12 +67,14 @@ else if (members.Count == 0)
 }
 else
 {
-    <table class="table">
+    <table class="table align-middle">
         <thead>
             <tr>
                 <th>Namn</th>
                 <th>E-post</th>
                 <th>Medlem sedan</th>
+                <th>Aktiva lån</th>
+                <th class="text-end">Åtgärder</th>
             </tr>
         </thead>
         <tbody>
@@ -34,6 +84,13 @@ else
                     <td>@member.FirstName @member.LastName</td>
                     <td>@member.Email</td>
                     <td>@member.MembershipDate.ToString("yyyy-MM-dd")</td>
+                    <td>@member.ActiveLoans</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" @onclick="() => EditMember(member)">Redigera</button>
+                            <button class="btn btn-outline-danger" @onclick="() => DeleteMemberAsync(member.Id)">Ta bort</button>
+                        </div>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -41,10 +98,150 @@ else
 }
 
 @code {
-    private List<Member>? members;
+    private List<MemberListItem>? members;
+    private MemberFormModel memberForm = new();
+    private string? statusMessage;
+    private bool statusIsError;
+    private bool isFormVisible;
 
     protected override async Task OnInitializedAsync()
     {
-        members = await Context.Members.ToListAsync();
+        await LoadMembersAsync();
+    }
+
+    private async Task LoadMembersAsync()
+    {
+        members = await Context.Members
+            .Select(member => new MemberListItem
+            {
+                Id = member.Id,
+                FirstName = member.FirstName,
+                LastName = member.LastName,
+                Email = member.Email,
+                MembershipDate = member.MembershipDate,
+                ActiveLoans = member.Loans.Count(loan => loan.ReturnDate == null)
+            })
+            .OrderBy(member => member.LastName)
+            .ThenBy(member => member.FirstName)
+            .ToListAsync();
+    }
+
+    private async Task SaveMemberAsync()
+    {
+        ClearStatus();
+
+        if (memberForm.Id == 0)
+        {
+            Context.Members.Add(new Member
+            {
+                FirstName = memberForm.FirstName.Trim(),
+                LastName = memberForm.LastName.Trim(),
+                Email = memberForm.Email.Trim(),
+                MembershipDate = memberForm.MembershipDate
+            });
+
+            statusMessage = "Medlemmen lades till.";
+        }
+        else
+        {
+            var member = await Context.Members.FindAsync(memberForm.Id);
+            if (member is null)
+            {
+                SetError("Medlemmen kunde inte hittas.");
+                await LoadMembersAsync();
+                ResetForm();
+                return;
+            }
+
+            member.FirstName = memberForm.FirstName.Trim();
+            member.LastName = memberForm.LastName.Trim();
+            member.Email = memberForm.Email.Trim();
+            member.MembershipDate = memberForm.MembershipDate;
+
+            statusMessage = "Medlemmen uppdaterades.";
+        }
+
+        await Context.SaveChangesAsync();
+        await LoadMembersAsync();
+        HideForm();
+    }
+
+    private void EditMember(MemberListItem member)
+    {
+        ClearStatus();
+        isFormVisible = true;
+        memberForm = new MemberFormModel
+        {
+            Id = member.Id,
+            FirstName = member.FirstName,
+            LastName = member.LastName,
+            Email = member.Email,
+            MembershipDate = member.MembershipDate
+        };
+    }
+
+    private async Task DeleteMemberAsync(int id)
+    {
+        ClearStatus();
+
+        var member = await Context.Members
+            .Include(item => item.Loans)
+            .FirstOrDefaultAsync(item => item.Id == id);
+
+        if (member is null)
+        {
+            SetError("Medlemmen kunde inte hittas.");
+            return;
+        }
+
+        if (member.Loans.Any(loan => loan.ReturnDate is null))
+        {
+            SetError("Medlemmen kan inte tas bort eftersom den har aktiva lån.");
+            return;
+        }
+
+        if (member.Loans.Count > 0)
+        {
+            SetError("Medlemmen kan inte tas bort eftersom lånehistorik finns kvar.");
+            return;
+        }
+
+        Context.Members.Remove(member);
+        await Context.SaveChangesAsync();
+        await LoadMembersAsync();
+        HideForm();
+        statusMessage = "Medlemmen togs bort.";
+    }
+
+    private void ShowCreateForm()
+    {
+        isFormVisible = true;
+        ResetForm();
+    }
+
+    private void HideForm()
+    {
+        isFormVisible = false;
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        memberForm = new MemberFormModel
+        {
+            MembershipDate = DateTime.Today
+        };
+    }
+
+    private void ClearStatus()
+    {
+        statusMessage = null;
+        statusIsError = false;
+    }
+
+    private void SetError(string message)
+    {
+        statusMessage = message;
+        statusIsError = true;
     }
 }

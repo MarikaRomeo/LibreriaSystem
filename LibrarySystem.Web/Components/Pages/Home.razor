@@ -1,7 +1,98 @@
-﻿@page "/"
+@page "/"
+@using LibrarySystem.Data
+@using Microsoft.EntityFrameworkCore
+@inject LibraryContext Context
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Hem</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="mb-4">
+    <h1 class="mb-2">Bibliotekssystem</h1>
+    <p class="text-muted mb-0">Hantera böcker, medlemmar och utlåning från en gemensam startsida.</p>
+</div>
 
-Welcome to your new app.
+@if (isLoading)
+{
+    <p>Laddar bibliotekets översikt...</p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-2">Totalt antal böcker</p>
+                    <h2 class="mb-0">@totalBooks</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-2">Tillgängliga böcker</p>
+                    <h2 class="mb-0">@availableBooks</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-2">Aktiva lån</p>
+                    <h2 class="mb-0">@activeLoans</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-2">Registrerade medlemmar</p>
+                    <h2 class="mb-0">@totalMembers</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h4 class="card-title">Snabböversikt</h4>
+                    <p class="mb-3">Systemet ger dig direkt tillgång till bibliotekets viktigaste delar.</p>
+                    <ul class="mb-0">
+                        <li>Se hela bokbeståndet och uppdatera bokinformation.</li>
+                        <li>Registrera och administrera medlemmar.</li>
+                        <li>Skapa nya lån och returnera aktiva utlåningar.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h4 class="card-title">Genvägar</h4>
+                    <div class="d-grid gap-2">
+                        <a class="btn btn-primary" href="/books">Gå till boklistan</a>
+                        <a class="btn btn-outline-primary" href="/members">Gå till medlemmar</a>
+                        <a class="btn btn-outline-primary" href="/loans">Gå till utlåning</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private int totalBooks;
+    private int availableBooks;
+    private int activeLoans;
+    private int totalMembers;
+
+    protected override async Task OnInitializedAsync()
+    {
+        totalBooks = await Context.Books.CountAsync();
+        availableBooks = await Context.Books.CountAsync(book => book.IsAvailable);
+        activeLoans = await Context.Loans.CountAsync(loan => loan.ReturnDate == null);
+        totalMembers = await Context.Members.CountAsync();
+        isLoading = false;
+    }
+}

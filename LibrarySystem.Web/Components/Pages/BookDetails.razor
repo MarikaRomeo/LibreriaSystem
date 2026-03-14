@@ -1,0 +1,187 @@
+@page "/books/{Id:int}"
+@using LibrarySystem.Core
+@using LibrarySystem.Data
+@using Microsoft.EntityFrameworkCore
+@inject LibraryContext Context
+@inject NavigationManager Navigation
+
+<PageTitle>Bokdetaljer</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @(statusIsError ? "alert-danger" : "alert-success")" role="alert">
+        @statusMessage
+    </div>
+}
+
+@if (book is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="mb-1">@book.Title</h3>
+            <p class="text-muted mb-0">@book.Author</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="BackToBooks">Till boklistan</button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3"><strong>ISBN:</strong> @book.ISBN</div>
+                <div class="col-md-3"><strong>Utgivningsår:</strong> @book.PublishedYear</div>
+                <div class="col-md-3"><strong>Status:</strong> @(book.IsAvailable ? "Tillgänglig" : "Utlånad")</div>
+                <div class="col-md-3">
+                    @if (book.IsAvailable)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="BorrowMostRecentMemberAsync">Låna ut till senaste medlem</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="ReturnActiveLoanAsync">Returnera aktivt lån</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h5>Lånehistorik</h5>
+    @if (loanHistory.Count == 0)
+    {
+        <p>Ingen lånehistorik finns ännu.</p>
+    }
+    else
+    {
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Medlem</th>
+                    <th>Utlånad</th>
+                    <th>Returnerad</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var loan in loanHistory)
+                {
+                    <tr>
+                        <td>@loan.Member.FirstName @loan.Member.LastName</td>
+                        <td>@loan.LoanDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(loan.ReturnDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                        <td>@(loan.IsReturned ? "Returnerad" : "Aktiv")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Book? book;
+    private List<Loan> loanHistory = [];
+    private string? statusMessage;
+    private bool statusIsError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadPageDataAsync();
+    }
+
+    private async Task LoadPageDataAsync()
+    {
+        book = await Context.Books.FirstOrDefaultAsync(item => item.Id == Id);
+        loanHistory = await Context.Loans
+            .Include(loan => loan.Member)
+            .Where(loan => loan.BookId == Id)
+            .OrderByDescending(loan => loan.LoanDate)
+            .ToListAsync();
+    }
+
+    private async Task BorrowMostRecentMemberAsync()
+    {
+        ClearStatus();
+
+        if (book is null)
+        {
+            SetError("Boken kunde inte hittas.");
+            return;
+        }
+
+        var member = await Context.Members
+            .OrderByDescending(item => item.MembershipDate)
+            .FirstOrDefaultAsync();
+
+        if (member is null)
+        {
+            SetError("Det finns ingen medlem att låna ut boken till.");
+            return;
+        }
+
+        if (!book.IsAvailable)
+        {
+            SetError("Boken är redan utlånad.");
+            return;
+        }
+
+        Context.Loans.Add(new Loan
+        {
+            BookId = book.Id,
+            MemberId = member.Id,
+            LoanDate = DateTime.Today
+        });
+
+        book.IsAvailable = false;
+        await Context.SaveChangesAsync();
+        await LoadPageDataAsync();
+        statusMessage = $"Boken lånades ut till {member.FirstName} {member.LastName}.";
+    }
+
+    private async Task ReturnActiveLoanAsync()
+    {
+        ClearStatus();
+
+        if (book is null)
+        {
+            SetError("Boken kunde inte hittas.");
+            return;
+        }
+
+        var activeLoan = await Context.Loans
+            .FirstOrDefaultAsync(loan => loan.BookId == Id && loan.ReturnDate == null);
+
+        if (activeLoan is null)
+        {
+            SetError("Det finns inget aktivt lån att returnera.");
+            return;
+        }
+
+        activeLoan.ReturnDate = DateTime.Today;
+        book.IsAvailable = true;
+        await Context.SaveChangesAsync();
+        await LoadPageDataAsync();
+        statusMessage = "Det aktiva lånet markerades som returnerat.";
+    }
+
+    private void BackToBooks()
+    {
+        Navigation.NavigateTo("/books");
+    }
+
+    private void ClearStatus()
+    {
+        statusMessage = null;
+        statusIsError = false;
+    }
+
+    private void SetError(string message)
+    {
+        statusMessage = message;
+        statusIsError = true;
+    }
+}

@@ -1,13 +1,68 @@
-﻿@using LibrarySystem.Data
-@using LibrarySystem.Core
-@using Microsoft.EntityFrameworkCore
-
-
-
 @page "/books"
+@using LibrarySystem.Core
+@using LibrarySystem.Data
+@using LibrarySystem.Web.ViewModels.Books
+@using Microsoft.EntityFrameworkCore
 @inject LibraryContext Context
+@inject NavigationManager Navigation
 
-<h3>Böcker</h3>
+<PageTitle>Böcker</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Böcker</h3>
+    <button class="btn btn-outline-secondary" @onclick="ShowCreateForm">Ny bok</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @(statusIsError ? "alert-danger" : "alert-success")" role="alert">
+        @statusMessage
+    </div>
+}
+
+@if (isFormVisible)
+{
+    <EditForm Model="bookForm" OnValidSubmit="SaveBookAsync" class="card shadow-sm mb-4">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card-body">
+            <h5 class="card-title">@(bookForm.Id == 0 ? "Lägg till bok" : "Redigera bok")</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">ISBN</label>
+                    <InputText class="form-control" @bind-Value="bookForm.ISBN" />
+                    <ValidationMessage For="@(() => bookForm.ISBN)" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Titel</label>
+                    <InputText class="form-control" @bind-Value="bookForm.Title" />
+                    <ValidationMessage For="@(() => bookForm.Title)" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Författare</label>
+                    <InputText class="form-control" @bind-Value="bookForm.Author" />
+                    <ValidationMessage For="@(() => bookForm.Author)" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Utgivningsår</label>
+                    <InputNumber class="form-control" @bind-Value="bookForm.PublishedYear" />
+                    <ValidationMessage For="@(() => bookForm.PublishedYear)" />
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="bookForm.IsAvailable" />
+                        <label class="form-check-label">Tillgänglig</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Spara</button>
+            <button type="button" class="btn btn-outline-secondary" @onclick="HideForm">Avbryt</button>
+        </div>
+    </EditForm>
+}
 
 @if (books == null)
 {
@@ -15,13 +70,15 @@
 }
 else
 {
-    <table class="table">
+    <table class="table align-middle">
         <thead>
             <tr>
                 <th>ISBN</th>
                 <th>Titel</th>
                 <th>Författare</th>
+                <th>År</th>
                 <th>Status</th>
+                <th class="text-end">Åtgärder</th>
             </tr>
         </thead>
         <tbody>
@@ -31,7 +88,15 @@ else
                     <td>@book.ISBN</td>
                     <td>@book.Title</td>
                     <td>@book.Author</td>
-                    <td>@(book.IsAvailable ? "🟢" : "🔴")</td>
+                    <td>@book.PublishedYear</td>
+                    <td>@(book.IsAvailable ? "Tillgänglig" : "Utlånad")</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" @onclick="() => EditBook(book)">Redigera</button>
+                            <button class="btn btn-outline-secondary" @onclick="() => OpenBookDetails(book.Id)">Detaljer</button>
+                            <button class="btn btn-outline-danger" @onclick="() => DeleteBookAsync(book.Id)">Ta bort</button>
+                        </div>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -40,9 +105,143 @@ else
 
 @code {
     private List<Book>? books;
+    private BookFormModel bookForm = new();
+    private string? statusMessage;
+    private bool statusIsError;
+    private bool isFormVisible;
 
     protected override async Task OnInitializedAsync()
     {
-        books = await Context.Books.ToListAsync();
+        await LoadBooksAsync();
+    }
+
+    private async Task LoadBooksAsync()
+    {
+        books = await Context.Books
+            .OrderBy(book => book.Title)
+            .ToListAsync();
+    }
+
+    private async Task SaveBookAsync()
+    {
+        ClearStatus();
+
+        if (bookForm.Id == 0)
+        {
+            var book = new Book
+            {
+                ISBN = bookForm.ISBN.Trim(),
+                Title = bookForm.Title.Trim(),
+                Author = bookForm.Author.Trim(),
+                PublishedYear = bookForm.PublishedYear,
+                IsAvailable = bookForm.IsAvailable
+            };
+
+            Context.Books.Add(book);
+            statusMessage = "Boken lades till.";
+        }
+        else
+        {
+            var book = await Context.Books.FindAsync(bookForm.Id);
+            if (book is null)
+            {
+                SetError("Boken kunde inte hittas.");
+                await LoadBooksAsync();
+                ResetForm();
+                return;
+            }
+
+            book.ISBN = bookForm.ISBN.Trim();
+            book.Title = bookForm.Title.Trim();
+            book.Author = bookForm.Author.Trim();
+            book.PublishedYear = bookForm.PublishedYear;
+            book.IsAvailable = bookForm.IsAvailable;
+
+            statusMessage = "Boken uppdaterades.";
+        }
+
+        await Context.SaveChangesAsync();
+        await LoadBooksAsync();
+        HideForm();
+    }
+
+    private void EditBook(Book book)
+    {
+        ClearStatus();
+        isFormVisible = true;
+        bookForm = new BookFormModel
+        {
+            Id = book.Id,
+            ISBN = book.ISBN,
+            Title = book.Title,
+            Author = book.Author,
+            PublishedYear = book.PublishedYear,
+            IsAvailable = book.IsAvailable
+        };
+    }
+
+    private async Task DeleteBookAsync(int id)
+    {
+        ClearStatus();
+
+        var book = await Context.Books
+            .Include(item => item.Loans)
+            .FirstOrDefaultAsync(item => item.Id == id);
+
+        if (book is null)
+        {
+            SetError("Boken kunde inte hittas.");
+            return;
+        }
+
+        if (book.Loans.Count > 0)
+        {
+            SetError("Boken kan inte tas bort eftersom den har lånehistorik.");
+            return;
+        }
+
+        Context.Books.Remove(book);
+        await Context.SaveChangesAsync();
+        await LoadBooksAsync();
+        HideForm();
+        statusMessage = "Boken togs bort.";
+    }
+
+    private void OpenBookDetails(int id)
+    {
+        Navigation.NavigateTo($"/books/{id}");
+    }
+
+    private void ShowCreateForm()
+    {
+        isFormVisible = true;
+        ResetForm();
+    }
+
+    private void HideForm()
+    {
+        isFormVisible = false;
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        bookForm = new BookFormModel
+        {
+            PublishedYear = DateTime.Today.Year,
+            IsAvailable = true
+        };
+    }
+
+    private void ClearStatus()
+    {
+        statusMessage = null;
+        statusIsError = false;
+    }
+
+    private void SetError(string message)
+    {
+        statusMessage = message;
+        statusIsError = true;
     }
 }
