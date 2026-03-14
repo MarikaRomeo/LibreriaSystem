@@ -4,6 +4,7 @@ public static class LibraryDatabase
 {
     private const string DatabaseFileName = "library.db";
     private const string DataProjectDirectoryName = "LibrarySystem.Data";
+    private const string DatabaseDirectoryName = "db";
 
     public static string GetDatabasePath(string startDirectory)
     {
@@ -11,13 +12,13 @@ public static class LibraryDatabase
 
         while (directory is not null)
         {
-            var dataProjectPath = Path.Combine(directory.FullName, DataProjectDirectoryName, DatabaseFileName);
+            var dataProjectPath = Path.Combine(directory.FullName, DataProjectDirectoryName, DatabaseDirectoryName, DatabaseFileName);
             if (File.Exists(dataProjectPath))
             {
                 return dataProjectPath;
             }
 
-            var localPath = Path.Combine(directory.FullName, DatabaseFileName);
+            var localPath = Path.Combine(directory.FullName, DatabaseDirectoryName, DatabaseFileName);
             if (directory.Name == DataProjectDirectoryName && File.Exists(localPath))
             {
                 return localPath;
@@ -26,7 +27,7 @@ public static class LibraryDatabase
             directory = directory.Parent;
         }
 
-        return Path.GetFullPath(Path.Combine(startDirectory, DatabaseFileName));
+        return Path.GetFullPath(Path.Combine(startDirectory, DatabaseDirectoryName, DatabaseFileName));
     }
 
     public static string GetConnectionString(string startDirectory)
