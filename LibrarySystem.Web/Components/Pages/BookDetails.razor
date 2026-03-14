@@ -1,6 +1,7 @@
 @page "/books/{Id:int}"
 @using LibrarySystem.Core
 @using LibrarySystem.Data
+@using LibrarySystem.Web.ViewModels.Loans
 @using Microsoft.EntityFrameworkCore
 @inject LibraryContext Context
 @inject NavigationManager Navigation
@@ -34,15 +35,53 @@ else
                 <div class="col-md-3"><strong>ISBN:</strong> @book.ISBN</div>
                 <div class="col-md-3"><strong>Utgivningsår:</strong> @book.PublishedYear</div>
                 <div class="col-md-3"><strong>Status:</strong> @(book.IsAvailable ? "Tillgänglig" : "Utlånad")</div>
-                <div class="col-md-3">
-                    @if (!book.IsAvailable)
+                <div class="col-md-3 d-flex justify-content-end gap-2">
+                    @if (book.IsAvailable)
                     {
-                        <button class="btn btn-primary btn-sm" @onclick="ReturnActiveLoanAsync">Returnera aktivt lån</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="ShowCreateForm">Nytt lån</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-primary btn-sm" @onclick="ReturnActiveLoanAsync">Returnera aktivt lån</button>
                     }
                 </div>
             </div>
         </div>
     </div>
+
+    @if (isFormVisible)
+    {
+        <EditForm Model="loanForm" OnValidSubmit="CreateLoanAsync" class="card shadow-sm mb-4">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="card-body">
+                <h5 class="card-title">Skapa nytt lån</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Medlem</label>
+                        <InputSelect class="form-select" @bind-Value="loanForm.MemberId">
+                            <option value="0">Välj medlem</option>
+                            @foreach (var member in memberOptions)
+                            {
+                                <option value="@member.Id">@member.FullName</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => loanForm.MemberId)" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Utlåningsdatum</label>
+                        <InputDate class="form-control" @bind-Value="loanForm.LoanDate" />
+                        <ValidationMessage For="@(() => loanForm.LoanDate)" />
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Skapa lån</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="HideForm">Avbryt</button>
+            </div>
+        </EditForm>
+    }
 
     <h5>Lånehistorik</h5>
     @if (loanHistory.Count == 0)
@@ -81,8 +120,11 @@ else
 
     private Book? book;
     private List<Loan> loanHistory = [];
+    private List<MemberOption> memberOptions = [];
+    private LoanFormModel loanForm = new();
     private string? statusMessage;
     private bool statusIsError;
+    private bool isFormVisible;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -97,6 +139,56 @@ else
             .Where(loan => loan.BookId == Id)
             .OrderByDescending(loan => loan.LoanDate)
             .ToListAsync();
+
+        memberOptions = await Context.Members
+            .OrderBy(member => member.LastName)
+            .ThenBy(member => member.FirstName)
+            .Select(member => new MemberOption
+            {
+                Id = member.Id,
+                FullName = member.FirstName + " " + member.LastName
+            })
+            .ToListAsync();
+    }
+
+    private async Task CreateLoanAsync()
+    {
+        ClearStatus();
+
+        if (book is null)
+        {
+            SetError("Boken kunde inte hittas.");
+            return;
+        }
+
+        var member = await Context.Members.FindAsync(loanForm.MemberId);
+
+        if (member is null)
+        {
+            SetError("Medlemmen kunde inte hittas.");
+            await LoadPageDataAsync();
+            return;
+        }
+
+        if (!book.IsAvailable)
+        {
+            SetError("Boken är redan utlånad.");
+            await LoadPageDataAsync();
+            return;
+        }
+
+        Context.Loans.Add(new Loan
+        {
+            BookId = book.Id,
+            MemberId = member.Id,
+            LoanDate = loanForm.LoanDate
+        });
+
+        book.IsAvailable = false;
+        await Context.SaveChangesAsync();
+        await LoadPageDataAsync();
+        HideForm();
+        statusMessage = "Lånet skapades.";
     }
 
     private async Task ReturnActiveLoanAsync()
@@ -123,6 +215,27 @@ else
         await Context.SaveChangesAsync();
         await LoadPageDataAsync();
         statusMessage = "Det aktiva lånet markerades som returnerat.";
+    }
+
+    private void ShowCreateForm()
+    {
+        isFormVisible = true;
+        ResetLoanForm();
+    }
+
+    private void HideForm()
+    {
+        isFormVisible = false;
+        ResetLoanForm();
+    }
+
+    private void ResetLoanForm()
+    {
+        loanForm = new LoanFormModel
+        {
+            BookId = Id,
+            LoanDate = DateTime.Today
+        };
     }
 
     private void BackToBooks()
