@@ -46,9 +46,57 @@ Projektet använder SQLite.
 
 Databasfilen ligger i:
 
-`LibrarySystem.Data/library.db`
+`LibrarySystem.Data/db/library.db`
 
 Det finns också Entity Framework migrations i projektet så databasen kan skapas och uppdateras automatiskt.
+
+## Kort databasschema
+
+Databasen består av tre tabeller:
+
+### Books
+
+Används för att spara böcker i biblioteket.
+
+Fält:
+
+- `Id`
+- `ISBN`
+- `Title`
+- `Author`
+- `PublishedYear`
+- `IsAvailable`
+
+### Members
+
+Används för att spara bibliotekets medlemmar.
+
+Fält:
+
+- `Id`
+- `FirstName`
+- `LastName`
+- `Email`
+- `MembershipDate`
+
+### Loans
+
+Används för att spara utlåningar mellan böcker och medlemmar.
+
+Fält:
+
+- `Id`
+- `BookId`
+- `MemberId`
+- `LoanDate`
+- `ReturnDate`
+
+Relationer:
+
+- En bok kan ha många lån
+- En medlem kan ha många lån
+- Ett lån hör till exakt en bok
+- Ett lån hör till exakt en medlem
 
 ## Hur man kör projektet
 
