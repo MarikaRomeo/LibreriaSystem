@@ -78,6 +78,18 @@ else
             </div>
         </div>
     </div>
+
+    <div class="mt-4">
+        <h4 class="mb-3">Utvalda böcker</h4>
+        <div class="row g-3">
+            @foreach (var book in featuredBooks)
+            {
+                <div class="col-md-4">
+                    <BookCard Book="book" />
+                </div>
+            }
+        </div>
+    </div>
 }
 
 @code {
@@ -86,6 +98,7 @@ else
     private int availableBooks;
     private int activeLoans;
     private int totalMembers;
+    private List<Book> featuredBooks = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -93,6 +106,10 @@ else
         availableBooks = await Context.Books.CountAsync(book => book.IsAvailable);
         activeLoans = await Context.Loans.CountAsync(loan => loan.ReturnDate == null);
         totalMembers = await Context.Members.CountAsync();
+        featuredBooks = await Context.Books
+            .OrderBy(book => book.Title)
+            .Take(3)
+            .ToListAsync();
         isLoading = false;
     }
 }
