@@ -4,6 +4,7 @@
 @using LibrarySystem.Web.ViewModels.Members
 @using Microsoft.EntityFrameworkCore
 @inject LibraryContext Context
+@inject NavigationManager Navigation
 
 <PageTitle>Medlemmar</PageTitle>
 
@@ -87,8 +88,9 @@ else
                     <td>@member.ActiveLoans</td>
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary" @onclick="() => EditMember(member)">Redigera</button>
-                            <button class="btn btn-outline-danger" @onclick="() => DeleteMemberAsync(member.Id)">Ta bort</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="() => OpenMemberDetails(member.Id)">Detaljer</button>
+                            <button type="button" class="btn btn-outline-primary" @onclick="() => EditMember(member)">Redigera</button>
+                            <button type="button" class="btn btn-outline-danger" @onclick="() => DeleteMemberAsync(member.Id)">Ta bort</button>
                         </div>
                     </td>
                 </tr>
@@ -211,6 +213,11 @@ else
         await LoadMembersAsync();
         HideForm();
         statusMessage = "Medlemmen togs bort.";
+    }
+
+    private void OpenMemberDetails(int id)
+    {
+        Navigation.NavigateTo($"/members/{id}");
     }
 
     private void ShowCreateForm()

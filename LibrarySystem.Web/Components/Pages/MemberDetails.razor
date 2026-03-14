@@ -1,0 +1,89 @@
+@page "/members/{Id:int}"
+@using LibrarySystem.Core
+@using LibrarySystem.Data
+@using Microsoft.EntityFrameworkCore
+@inject LibraryContext Context
+@inject NavigationManager Navigation
+
+<PageTitle>Medlemsdetaljer</PageTitle>
+
+@if (member is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="mb-1">@member.FirstName @member.LastName</h3>
+            <p class="text-muted mb-0">@member.Email</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" @onclick="BackToMembers">Till medlemmar</button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4"><strong>Förnamn:</strong> @member.FirstName</div>
+                <div class="col-md-4"><strong>Efternamn:</strong> @member.LastName</div>
+                <div class="col-md-4"><strong>E-post:</strong> @member.Email</div>
+                <div class="col-md-4"><strong>Medlem sedan:</strong> @member.MembershipDate.ToString("yyyy-MM-dd")</div>
+                <div class="col-md-4"><strong>Aktiva lån:</strong> @loanHistory.Count(loan => !loan.IsReturned)</div>
+                <div class="col-md-4"><strong>Totalt antal lån:</strong> @loanHistory.Count</div>
+            </div>
+        </div>
+    </div>
+
+    <h5>Lånehistorik</h5>
+    @if (loanHistory.Count == 0)
+    {
+        <p>Ingen lånehistorik finns ännu.</p>
+    }
+    else
+    {
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Bok</th>
+                    <th>Utlånad</th>
+                    <th>Returnerad</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var loan in loanHistory)
+                {
+                    <tr>
+                        <td>@loan.Book.Title</td>
+                        <td>@loan.LoanDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(loan.ReturnDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                        <td>@(loan.IsReturned ? "Returnerad" : "Aktiv")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Member? member;
+    private List<Loan> loanHistory = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        member = await Context.Members.FirstOrDefaultAsync(item => item.Id == Id);
+        loanHistory = await Context.Loans
+            .Include(loan => loan.Book)
+            .Where(loan => loan.MemberId == Id)
+            .OrderByDescending(loan => loan.LoanDate)
+            .ToListAsync();
+    }
+
+    private void BackToMembers()
+    {
+        Navigation.NavigateTo("/members");
+    }
+}
