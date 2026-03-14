@@ -137,3 +137,29 @@ dotnet test
 - `/books/{id}` = bokdetaljer
 - `/members` = medlemmar
 - `/loans` = utlåning
+
+## Screenshots av gränssnittet
+
+### Hem
+
+![Hem](Images/Hem.png)
+
+### Boklista
+
+![Boklista](Images/Boklista.png)
+
+### Bokdetaljer
+
+![Bokdetaljer](Images/Bokdetaljer.png)
+
+### Medlemmar
+
+![Medlemmar](Images/Medlemmar.png)
+
+### Medlemsdetaljer
+
+![Medlemsdetaljer](Images/Medlemsdetaljer.png)
+
+### Utlåning
+
+![Utlåning](Images/Utlåning.png)
