@@ -83,18 +83,29 @@ else
                 <th>Utlånad</th>
                 <th>Returnerad</th>
                 <th>Status</th>
+                <th>Överfällig</th>
                 <th class="text-end">Åtgärder</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var loan in loans)
             {
-                <tr>
+                <tr class="@(IsOverdue(loan) ? "table-danger" : string.Empty)">
                     <td>@loan.Book.Title</td>
                     <td>@loan.Member.FirstName @loan.Member.LastName</td>
                     <td>@loan.LoanDate.ToString("yyyy-MM-dd")</td>
                     <td>@(loan.ReturnDate?.ToString("yyyy-MM-dd") ?? "-")</td>
                     <td>@(loan.IsReturned ? "Returnerad" : "Aktiv")</td>
+                    <td>
+                        @if (IsOverdue(loan))
+                        {
+                            <span class="badge text-bg-danger">Ja</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Nej</span>
+                        }
+                    </td>
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
                             @if (!loan.IsReturned)
@@ -273,5 +284,10 @@ else
     {
         statusMessage = message;
         statusIsError = true;
+    }
+
+    private static bool IsOverdue(LoanEntity loan)
+    {
+        return !loan.IsReturned && loan.LoanDate.Date < DateTime.Today.AddDays(-14);
     }
 }
