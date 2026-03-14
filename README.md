@@ -98,6 +98,12 @@ Relationer:
 - Ett lån hör till exakt en bok
 - Ett lån hör till exakt en medlem
 
+### Databasschema bild
+
+Här är en screenshot av databasschemat:
+
+![Databasschema](Images/Database.png)
+
 ## Hur man kör projektet
 
 1. Öppna lösningen i Visual Studio eller kör i terminal.
