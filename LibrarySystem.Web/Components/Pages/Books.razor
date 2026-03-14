@@ -105,8 +105,8 @@ else
                     <td>@(book.IsAvailable ? "Tillgänglig" : "Utlånad")</td>
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-primary" @onclick="() => EditBook(book)">Redigera</button>
                             <button type="button" class="btn btn-outline-secondary" @onclick="() => OpenBookDetails(book.Id)">Detaljer</button>
+                            <button type="button" class="btn btn-outline-primary" @onclick="() => EditBook(book)">Redigera</button>
                             <button type="button" class="btn btn-outline-danger" @onclick="() => DeleteBookAsync(book.Id)">Ta bort</button>
                         </div>
                     </td>
