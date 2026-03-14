@@ -35,11 +35,7 @@ else
                 <div class="col-md-3"><strong>Utgivningsår:</strong> @book.PublishedYear</div>
                 <div class="col-md-3"><strong>Status:</strong> @(book.IsAvailable ? "Tillgänglig" : "Utlånad")</div>
                 <div class="col-md-3">
-                    @if (book.IsAvailable)
-                    {
-                        <button class="btn btn-primary btn-sm" @onclick="BorrowMostRecentMemberAsync">Låna ut till senaste medlem</button>
-                    }
-                    else
+                    @if (!book.IsAvailable)
                     {
                         <button class="btn btn-primary btn-sm" @onclick="ReturnActiveLoanAsync">Returnera aktivt lån</button>
                     }
@@ -101,45 +97,6 @@ else
             .Where(loan => loan.BookId == Id)
             .OrderByDescending(loan => loan.LoanDate)
             .ToListAsync();
-    }
-
-    private async Task BorrowMostRecentMemberAsync()
-    {
-        ClearStatus();
-
-        if (book is null)
-        {
-            SetError("Boken kunde inte hittas.");
-            return;
-        }
-
-        var member = await Context.Members
-            .OrderByDescending(item => item.MembershipDate)
-            .FirstOrDefaultAsync();
-
-        if (member is null)
-        {
-            SetError("Det finns ingen medlem att låna ut boken till.");
-            return;
-        }
-
-        if (!book.IsAvailable)
-        {
-            SetError("Boken är redan utlånad.");
-            return;
-        }
-
-        Context.Loans.Add(new Loan
-        {
-            BookId = book.Id,
-            MemberId = member.Id,
-            LoanDate = DateTime.Today
-        });
-
-        book.IsAvailable = false;
-        await Context.SaveChangesAsync();
-        await LoadPageDataAsync();
-        statusMessage = $"Boken lånades ut till {member.FirstName} {member.LastName}.";
     }
 
     private async Task ReturnActiveLoanAsync()
