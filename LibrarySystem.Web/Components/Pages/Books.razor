@@ -10,7 +10,20 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">Böcker</h3>
-    <button class="btn btn-outline-secondary" @onclick="ShowCreateForm">Ny bok</button>
+    <button type="button" class="btn btn-outline-secondary" @onclick="ShowCreateForm">Ny bok</button>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-7">
+        <label class="form-label">Sök</label>
+        <input class="form-control" value="@searchTerm" @oninput="OnSearchInput" placeholder="Sök på ISBN, titel eller författare" />
+    </div>
+    <div class="col-md-5 d-flex align-items-end">
+        <div class="d-flex gap-2 w-100">
+            <button type="button" class="btn btn-outline-primary" @onclick="ApplyFiltersAsync">Sök</button>
+            <button type="button" class="btn btn-outline-secondary" @onclick="ResetFiltersAsync">Rensa sökning</button>
+        </div>
+    </div>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(statusMessage))
@@ -73,11 +86,11 @@ else
     <table class="table align-middle">
         <thead>
             <tr>
-                <th>ISBN</th>
-                <th>Titel</th>
-                <th>Författare</th>
-                <th>År</th>
-                <th>Status</th>
+                <th><button type="button" class="btn btn-link p-0 text-decoration-none" @onclick="() => SortByAsync(nameof(Book.ISBN))">ISBN @SortIndicator(nameof(Book.ISBN))</button></th>
+                <th><button type="button" class="btn btn-link p-0 text-decoration-none" @onclick="() => SortByAsync(nameof(Book.Title))">Titel @SortIndicator(nameof(Book.Title))</button></th>
+                <th><button type="button" class="btn btn-link p-0 text-decoration-none" @onclick="() => SortByAsync(nameof(Book.Author))">Författare @SortIndicator(nameof(Book.Author))</button></th>
+                <th><button type="button" class="btn btn-link p-0 text-decoration-none" @onclick="() => SortByAsync(nameof(Book.PublishedYear))">År @SortIndicator(nameof(Book.PublishedYear))</button></th>
+                <th><button type="button" class="btn btn-link p-0 text-decoration-none" @onclick="() => SortByAsync(nameof(Book.IsAvailable))">Status @SortIndicator(nameof(Book.IsAvailable))</button></th>
                 <th class="text-end">Åtgärder</th>
             </tr>
         </thead>
@@ -92,9 +105,9 @@ else
                     <td>@(book.IsAvailable ? "Tillgänglig" : "Utlånad")</td>
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary" @onclick="() => EditBook(book)">Redigera</button>
-                            <button class="btn btn-outline-secondary" @onclick="() => OpenBookDetails(book.Id)">Detaljer</button>
-                            <button class="btn btn-outline-danger" @onclick="() => DeleteBookAsync(book.Id)">Ta bort</button>
+                            <button type="button" class="btn btn-outline-primary" @onclick="() => EditBook(book)">Redigera</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="() => OpenBookDetails(book.Id)">Detaljer</button>
+                            <button type="button" class="btn btn-outline-danger" @onclick="() => DeleteBookAsync(book.Id)">Ta bort</button>
                         </div>
                     </td>
                 </tr>
@@ -109,6 +122,9 @@ else
     private string? statusMessage;
     private bool statusIsError;
     private bool isFormVisible;
+    private string searchTerm = string.Empty;
+    private string sortColumn = nameof(Book.Title);
+    private bool sortAscending = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -117,9 +133,39 @@ else
 
     private async Task LoadBooksAsync()
     {
-        books = await Context.Books
-            .OrderBy(book => book.Title)
-            .ToListAsync();
+        IQueryable<Book> query = Context.Books;
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var trimmedSearchTerm = searchTerm.Trim();
+            var normalizedSearchTerm = trimmedSearchTerm.ToLower();
+            var matchesAvailableStatus =
+                "tillgänglig".Contains(normalizedSearchTerm) ||
+                "tillganglig".Contains(normalizedSearchTerm) ||
+                "available".Contains(normalizedSearchTerm);
+            var matchesBorrowedStatus =
+                "utlånad".Contains(normalizedSearchTerm) ||
+                "utlanad".Contains(normalizedSearchTerm) ||
+                "borrowed".Contains(normalizedSearchTerm);
+
+            query = query.Where(book =>
+                book.ISBN.Contains(trimmedSearchTerm) ||
+                book.Title.Contains(trimmedSearchTerm) ||
+                book.Author.Contains(trimmedSearchTerm) ||
+                (book.IsAvailable && matchesAvailableStatus) ||
+                (!book.IsAvailable && matchesBorrowedStatus));
+        }
+
+        query = sortColumn switch
+        {
+            nameof(Book.ISBN) => sortAscending ? query.OrderBy(book => book.ISBN) : query.OrderByDescending(book => book.ISBN),
+            nameof(Book.Author) => sortAscending ? query.OrderBy(book => book.Author) : query.OrderByDescending(book => book.Author),
+            nameof(Book.PublishedYear) => sortAscending ? query.OrderBy(book => book.PublishedYear) : query.OrderByDescending(book => book.PublishedYear),
+            nameof(Book.IsAvailable) => sortAscending ? query.OrderBy(book => book.IsAvailable) : query.OrderByDescending(book => book.IsAvailable),
+            _ => sortAscending ? query.OrderBy(book => book.Title) : query.OrderByDescending(book => book.Title)
+        };
+
+        books = await query.ToListAsync();
     }
 
     private async Task SaveBookAsync()
@@ -210,6 +256,49 @@ else
     private void OpenBookDetails(int id)
     {
         Navigation.NavigateTo($"/books/{id}");
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        await LoadBooksAsync();
+    }
+
+    private void OnSearchInput(ChangeEventArgs args)
+    {
+        searchTerm = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private async Task ResetFiltersAsync()
+    {
+        searchTerm = string.Empty;
+        sortColumn = nameof(Book.Title);
+        sortAscending = true;
+        await LoadBooksAsync();
+    }
+
+    private async Task SortByAsync(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+
+        await LoadBooksAsync();
+    }
+
+    private string SortIndicator(string column)
+    {
+        if (sortColumn != column)
+        {
+            return string.Empty;
+        }
+
+        return sortAscending ? "↑" : "↓";
     }
 
     private void ShowCreateForm()
